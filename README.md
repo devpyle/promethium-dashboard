@@ -69,6 +69,29 @@ Without any address it still works as a pure network explorer.
 
 ---
 
+## How hashrate detection works
+
+The dashboard reads from two kinds of source, so it's clear what needs setup:
+
+**From your `prom1…` address — automatic, no setup:** these come straight off the
+public Promethium explorer API.
+- PROM held / balance
+- blocks won and your block-share
+- earn rate
+
+**From a mining source you connect — optional:** your **hashrate and hardware
+can't be derived from an address** (the chain doesn't know what rigs you run), so
+the dashboard reads them **live from whatever you point it at** — you never type
+hashrate numbers in by hand:
+- `MRR_KEY` / `MRR_SECRET` → your **MiningRigRentals** rented rigs + delivered hashrate
+- `NICEHASH_ORG` / `NICEHASH_KEY` / `NICEHASH_SECRET` → your active **NiceHash** SHA-256 hashpower orders
+- `MINER_LOG` → a local **cpuminer/ccminer** log for home CPU/GPU speed
+
+Skip all of them and the dashboard still works as an address-based explorer — the
+**Your Hardware** and **Your Hashrate** panels just stay empty.
+
+---
+
 ## Start mining
 
 The dashboard's **Get Mining** panel links straight to the official guides:
