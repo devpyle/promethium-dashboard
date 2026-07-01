@@ -196,7 +196,7 @@ def update_loop():
             rl = richlist(); mined = float(rl.get("totalMined", 0) or 0)
             leaders = [{"rank": e.get("rank"), "addr": e.get("address"), "bal": float(e.get("balance", 0)),
                         "pct": e.get("pct", 0), "you": e.get("address") in MY}
-                       for e in rl.get("top", [])][:20]
+                       for e in rl.get("top", [])][:100]
 
             halving_blocks = HALVING_INTERVAL - (tip % HALVING_INTERVAL)
             halving_days   = round(halving_blocks*avgbt/86400, 1) if avgbt else 0
@@ -284,6 +284,10 @@ th{text-align:left;color:var(--faint);font-weight:600;font-size:10px;letter-spac
 td{padding:9px 15px;border-top:1px solid var(--line);vertical-align:middle;color:#eef3ff}tr:hover td{background:rgba(188,212,255,.05)}
 .you td{background:rgba(0,240,255,.10)!important;color:var(--cyan);font-weight:700}.you td:first-child{box-shadow:inset 3px 0 0 var(--cyan)}
 .rank{color:var(--faint);font-weight:700;width:32px}.medal{font-size:14px}
+.pg{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--light);letter-spacing:.5px}
+.pg button{background:var(--bg2);border:1px solid var(--line);color:var(--light);cursor:pointer;padding:2px 9px;font-family:inherit;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.pg button:hover:not(:disabled){background:var(--title);color:var(--bg)}
+.pg button:disabled{opacity:.35;cursor:default}
 .mbar{display:inline-block;width:64px;height:6px;background:rgba(0,0,0,.25);overflow:hidden;vertical-align:middle;margin-left:8px;border:1px solid var(--line)}.mbar>i{display:block;height:100%;background:var(--cyan);box-shadow:0 0 5px var(--cyan)}
 .flag{font-size:10px;padding:1px 7px;background:rgba(0,0,0,.2);border:1px solid var(--line);color:var(--light);text-transform:uppercase}
 .tag2{font-size:9.5px;padding:1px 7px;background:rgba(188,212,255,.14);color:var(--title);text-transform:uppercase}.tag2.gpu{background:rgba(0,240,255,.14);color:var(--cyan)}
@@ -320,14 +324,22 @@ async function doLookup(){
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key=='Enter')doLookup()});
 function ago(s){return s<60?s+'s':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
+let LAST=null,lbPage=0;
+function lbGo(z){lbPage+=z;if(LAST)render(LAST);}
 async function tick(){
  let d;try{d=await(await fetch('/api/data')).json()}catch(e){return}
+ LAST=d;render(d);
+}
+function render(d){
  if(!d.ready){document.getElementById('app').innerHTML='<div class=card>fetching network… '+(d.error||'')+'</div>';return}
  document.getElementById('livets').textContent='live · '+new Date(d.ts*1000).toLocaleTimeString();
  const effc=d.win_eff>=.8?'pos':d.win_eff>=.4?'lt':'red';
  const you=d.configured;
  const winners=(d.winners||[]).map((w,i)=>`<tr class="${w.you?'you':''}"><td class=rank>${i+1}</td><td>${w.you?'★ YOU':shrt(w.addr)}</td><td>${w.n}</td><td>${w.pct}%<span class=mbar><i style="width:${Math.min(100,w.pct*100/((d.winners[0]||{}).pct||1))}%"></i></span></td></tr>`).join('');
- const leaders=(d.leaders||[]).map(l=>`<tr class="${l.you?'you':''}"><td class=rank>${l.rank<=3?['','🥇','🥈','🥉'][l.rank]:l.rank}</td><td>${l.you?'★ YOU':shrt(l.addr)}</td><td class=cy>${fmt(Math.round(l.bal))}</td><td>${l.pct}%</td></tr>`).join('');
+ const PER=20,allL=d.leaders||[],lbPages=Math.max(1,Math.ceil(allL.length/PER));
+ if(lbPage>=lbPages)lbPage=lbPages-1; if(lbPage<0)lbPage=0;
+ const leaders=allL.slice(lbPage*PER,lbPage*PER+PER).map(l=>`<tr class="${l.you?'you':''}"><td class=rank>${l.rank<=3?['','🥇','🥈','🥉'][l.rank]:l.rank}</td><td>${l.you?'★ YOU':shrt(l.addr)}</td><td class=cy>${fmt(Math.round(l.bal))}</td><td>${l.pct}%</td></tr>`).join('');
+ const lbnav=lbPages>1?`<span class=pg><button onclick="lbGo(-1)" ${lbPage==0?'disabled':''}>‹ prev</button> ${lbPage+1}/${lbPages} <button onclick="lbGo(1)" ${lbPage>=lbPages-1?'disabled':''}>next ›</button></span>`:'';
  const feed=(d.feed||[]).map(f=>`<div class=row><span class="h">#${fmt(f.h)}</span><span class=w>${f.miner?shrt(f.miner):'—'}${f.you?' ★ you':''}</span><span class=rw>+${f.reward}</span><span class=tm>${ago(f.ago)}</span></div>`).join('');
  const rigs=(d.rigs||[]).map(r=>`<tr><td>${r.name||'—'}</td><td>${r.src?('<span class="tag2'+(r.src=='Local'?' gpu':'')+'">'+r.src+'</span>'):''}</td><td>${r.hps||'—'}</td><td>${r.where?('<span class=flag>'+r.where+'</span>'):''}</td><td class=lt>${r.status||''}</td></tr>`).join('')||'<tr><td colspan=5 style="color:#8fa9e8">no rig/log source — add an MRR key or a miner-log path in CONFIG (optional)</td></tr>';
  document.getElementById('app').innerHTML=`
@@ -363,7 +375,7 @@ async function tick(){
    <table><tr><th class=rank>#</th><th>miner</th><th>won</th><th>share</th></tr>${winners}</table></div>
  </div>
  <div class=sec><span class=t>Leaderboard</span><span class=ln></span><span class=pill>top miners · all-time</span></div>
- <div class=tbl><div class=hd><span class=k>🏆 Top Miners</span><span class=r>${fmt(d.holders)} holders · ${fmt(d.mined)} PROM mined</span></div>
+ <div class=tbl><div class=hd><span class=k>🏆 Top Miners</span>${lbnav}<span class=r>${fmt(d.holders)} holders · ${fmt(d.mined)} PROM mined</span></div>
   <table><tr><th class=rank>#</th><th>miner</th><th>PROM held</th><th>% of supply</th></tr>${leaders}</table></div>
  <div class=sec><span class=t>Get Mining</span><span class=ln></span><span class=pill>official setup docs</span></div>
  <div class=getmine>
