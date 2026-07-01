@@ -61,7 +61,8 @@ Without any address it still works as a pure network explorer.
 
 - **Network** — height, hashrate, difficulty, block time, reward, blocks/24h, coins mined, next halving, holders
 - **Your Miner** — balance, earn rate, hashrate, % of network, blocks won, win efficiency
-- **Your Hardware** — rented rigs (MRR) and/or home CPU/GPU
+- **Your Hardware** — rented rigs (MRR / NiceHash) and/or home CPU/GPU
+- **Pool Payouts** — shared-pool miners auto-see their pending + paid PROM and pool-measured hashrate
 - **Recent Blocks** — live feed of who won each block
 - **Top Block Winners** — recent-window leaderboard
 - **Leaderboard** — top miners all-time
