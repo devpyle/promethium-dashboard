@@ -39,6 +39,7 @@ MINER_LOG      = ""          # optional: full path to a local cpuminer/ccminer l
 PORT           = 8899        # dashboard served at http://localhost:PORT
 HOST           = "127.0.0.1" # set "0.0.0.0" to reach it from other devices on your LAN
 WINDOW         = 50          # recent blocks scanned for the block-winners board / your share
+POOL_WALLETS   = []          # optional: shared-pool coinbase address(es) to flag with a globe in block winners/recent blocks
 # ===========================================================================
 
 EXP = "https://promethium.work/api/explorer"
@@ -162,7 +163,7 @@ def update_loop():
             if mine: merged.append(("__YOU__", mine))
             merged.sort(key=lambda x: -x[1])
             winners = [{"addr": ("YOU" if a == "__YOU__" else a), "n": n,
-                        "pct": round(100*n/total, 1), "you": a == "__YOU__"}
+                        "pct": round(100*n/total, 1), "you": a == "__YOU__", "pool": a in POOL_WALLETS}
                        for a, n in merged[:10]]
 
             # recent-blocks feed (last 8, newest first)
@@ -171,7 +172,7 @@ def update_loop():
                 bi = block_info.get(h, {})
                 feed.append({"h": h, "miner": bi.get("miner"), "reward": bi.get("reward", reward),
                              "ago": max(0, int(time.time()) - int(bi.get("time") or 0)),
-                             "you": bi.get("miner") in MY})
+                             "you": bi.get("miner") in MY, "pool": bi.get("miner") in POOL_WALLETS})
 
             # your miner
             bal = 0.0; blocks_total = 0
@@ -374,12 +375,12 @@ function render(d){
  document.getElementById('livets').textContent='live · '+new Date(d.ts*1000).toLocaleTimeString();
  const effc=d.win_eff>=.8?'pos':d.win_eff>=.4?'lt':'red';
  const you=d.configured;
- const winners=(d.winners||[]).map((w,i)=>`<tr class="${w.you?'you':''}"><td class=rank>${i+1}</td><td>${w.you?'★ YOU':shrt(w.addr)}</td><td>${w.n}</td><td>${w.pct}%<span class=mbar><i style="width:${Math.min(100,w.pct*100/((d.winners[0]||{}).pct||1))}%"></i></span></td></tr>`).join('');
+ const winners=(d.winners||[]).map((w,i)=>`<tr class="${w.you?'you':''}"><td class=rank>${i+1}</td><td>${w.you?'★ YOU':(w.pool?'🌐 ':'')+shrt(w.addr)}</td><td>${w.n}</td><td>${w.pct}%<span class=mbar><i style="width:${Math.min(100,w.pct*100/((d.winners[0]||{}).pct||1))}%"></i></span></td></tr>`).join('');
  const PER=20,allL=d.leaders||[],lbPages=Math.max(1,Math.ceil(allL.length/PER));
  if(lbPage>=lbPages)lbPage=lbPages-1; if(lbPage<0)lbPage=0;
  const leaders=allL.slice(lbPage*PER,lbPage*PER+PER).map(l=>`<tr class="${l.you?'you':''}"><td class=rank>${l.rank<=3?['','🥇','🥈','🥉'][l.rank]:l.rank}</td><td>${l.you?'★ YOU':shrt(l.addr)}</td><td class=cy>${fmt(Math.round(l.bal))}</td><td>${l.pct}%</td></tr>`).join('');
  const lbnav=lbPages>1?`<span class=pg><button onclick="lbGo(-1)" ${lbPage==0?'disabled':''}>‹ prev</button> ${lbPage+1}/${lbPages} <button onclick="lbGo(1)" ${lbPage>=lbPages-1?'disabled':''}>next ›</button></span>`:'';
- const feed=(d.feed||[]).map(f=>`<div class=row><span class="h">#${fmt(f.h)}</span><span class=w>${f.miner?shrt(f.miner):'—'}${f.you?' ★ you':''}</span><span class=rw>+${f.reward}</span><span class=tm>${ago(f.ago)}</span></div>`).join('');
+ const feed=(d.feed||[]).map(f=>`<div class=row><span class="h">#${fmt(f.h)}</span><span class=w>${f.miner?(f.pool?'🌐 ':'')+shrt(f.miner):'—'}${f.you?' ★ you':''}</span><span class=rw>+${f.reward}</span><span class=tm>${ago(f.ago)}</span></div>`).join('');
  const rigs=(d.rigs||[]).map(r=>`<tr><td>${r.name||'—'}</td><td>${r.src?('<span class="tag2'+(r.src=='Local'?' gpu':'')+'">'+r.src+'</span>'):''}</td><td>${r.hps||'—'}</td><td>${r.where?('<span class=flag>'+r.where+'</span>'):''}</td><td class=lt>${r.status||''}</td></tr>`).join('')||'<tr><td colspan=5 style="color:#8fa9e8">no rig/log source — add an MRR key or a miner-log path in CONFIG (optional)</td></tr>';
  document.getElementById('app').innerHTML=`
  <div class=sec><span class=t>Network</span><span class=ln></span><span class=pill>$PROM · SHA-256d</span></div>
