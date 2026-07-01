@@ -42,6 +42,7 @@ WINDOW         = 50          # recent blocks scanned for the block-winners board
 # ===========================================================================
 
 EXP = "https://promethium.work/api/explorer"
+POOL_API = "https://promethium.work/api/pool"
 MRR = "https://www.miningrigrentals.com/api/v2"
 NH  = "https://api2.nicehash.com"
 UA  = {"User-Agent": "prom-dashboard"}
@@ -103,6 +104,31 @@ def richlist():
     except Exception:
         if _rich[0] is None: _rich[0] = {"top": [], "holders": 0, "totalMined": 0}
     return _rich[0]
+
+_pool = [None, 0.0]
+def pool_wide():
+    now = time.time()
+    if _pool[0] is not None and now-_pool[1] < 30: return _pool[0]
+    try: _pool[0] = jget(POOL_API); _pool[1] = now
+    except Exception:
+        if _pool[0] is None: _pool[0] = {}
+    return _pool[0]
+
+_pm = [None, 0.0]
+def pool_me_agg():
+    """Aggregate this user's pool pending/paid/hashrate across all their addresses (cached ~30s)."""
+    now = time.time()
+    if _pm[0] is not None and now-_pm[1] < 30: return _pm[0]
+    pm = {"found": False, "pending": 0.0, "paid": 0.0, "earned": 0.0, "hps": 0.0}
+    for a in MY:
+        try:
+            m = jget(f"{POOL_API}/miner/{a}")
+            if m.get("found"):
+                pm["found"] = True
+                pm["pending"] += float(m.get("pending", 0)); pm["paid"] += float(m.get("paid", 0))
+                pm["earned"]  += float(m.get("earned", 0));  pm["hps"]  += float(m.get("hashrate", 0))
+        except Exception: pass
+    _pm[0] = pm; _pm[1] = now; return pm
 
 def block_at(h):
     if h in block_info: return block_info[h]
@@ -189,6 +215,10 @@ def update_loop():
                     rigs.append({"name": "(NiceHash error — check API key)", "src": "", "hps": "",
                                  "where": str(e)[:24], "status": ""})
 
+            # shared-pool payouts + pool-measured hashrate (cached ~30s to spare the pool API)
+            pstats = pool_wide(); pm = pool_me_agg()
+            your_hps += pm["hps"]
+
             net_pct   = 100*your_hps/nethps if nethps else 0
             share_pct = 100*mine/total
             win_eff   = (share_pct/net_pct) if net_pct else 0
@@ -215,6 +245,13 @@ def update_loop():
                 "mine_window": mine, "window_total": total,
                 # tables
                 "rigs": rigs, "feed": feed, "winners": winners, "leaders": leaders,
+                "pool_me": {"found": pm["found"], "pending": round(pm["pending"], 2),
+                            "paid": round(pm["paid"], 2), "earned": round(pm["earned"], 2), "hps": nice_hps(pm["hps"])},
+                "pool": {"lp_ts": (pstats.get("pool", {}).get("last_payout") or {}).get("ts", 0),
+                         "lp_total": (pstats.get("pool", {}).get("last_payout") or {}).get("total", 0),
+                         "lp_recips": (pstats.get("pool", {}).get("last_payout") or {}).get("recipients", 0),
+                         "hps": round(float(pstats.get("pool", {}).get("hashrate", 0))/1e15, 2),
+                         "miners": pstats.get("pool", {}).get("miners", 0)},
                 "pool_host": POOL_HOST, "pool_port": POOL_PORT, "solo_port": SOLO_PORT}
         except Exception as e:
             if STATE.get("ready"): STATE = {**STATE, "stale": True, "error": str(e)}
@@ -365,6 +402,15 @@ function render(d){
   <div class=card><div class=k>Your Hashrate</div><div class="v cy">${d.have_hps?d.your_hps:'—'}</div><div class=s>${d.have_hps?d.net_pct+'% of network':'add MRR key / miner log'}</div>${d.have_hps?`<div class=bar><i style="width:${Math.min(100,d.net_pct)}%"></i></div>`:''}</div>
   <div class=card><div class=k>Win Efficiency</div><div class="v ${d.have_hps?effc:''}">${d.have_hps?d.win_eff+'×':'—'}</div><div class=s>${you?'won '+d.mine_window+' of last '+d.window_total+' blocks':''}</div></div>
  </div>`:`<div class=card style="color:#a9c6ff">Set <b>PROM_ADDRESS</b> in the CONFIG block (top of explorer.py) to track your balance, earnings, hashrate and blocks won. No address yet? <span class=cy>promethium.work/downloads/prom-keygen.py</span></div>`}
+${d.pool_me&&d.pool_me.found?`
+ <div class=sec><span class=t>Pool Payouts</span><span class=ln></span><span class=pill>shared pool · :${d.pool_port} · PPLNS</span></div>
+ <div class="grid g4">
+  <div class=card><div class=k>Pending</div><div class="v cy">${fmt(d.pool_me.pending)} <small>PROM</small></div><div class=s>unpaid — accruing from your shares</div></div>
+  <div class=card><div class=k>Paid Out</div><div class="v pos">${fmt(d.pool_me.paid)} <small>PROM</small></div><div class=s>total sent to your address</div></div>
+  <div class=card><div class=k>Your Pool Hashrate</div><div class="v">${d.pool_me.hps}</div><div class=s>measured by the pool via shares</div></div>
+  <div class=card><div class=k>Pool Last Payout</div><div class="v">${fmt(Math.round(d.pool.lp_total))} <small>PROM</small></div><div class=s>${d.pool.lp_recips} miners · ${d.pool.lp_ts?ago(Math.floor(Date.now()/1000)-d.pool.lp_ts)+' ago':'—'}</div></div>
+ </div>
+ <div class=note>You're mining the shared pool (:${d.pool_port}, PPLNS): blocks are won by the <b>pool</b> and your cut is paid to your address — so "Blocks Won" below counts only solo/coinbase wins. Your real pool earnings are <b>Pending + Paid</b> above.</div>`:''}
  <div class="grid g2" style="margin-top:10px;align-items:start">
   <div style="display:flex;flex-direction:column;gap:10px">
    <div class=tbl><div class=hd><span class=k>⛏ Your Hardware</span><span class=r>delivered · 5 min</span></div>
