@@ -9,8 +9,8 @@ feed, the top block winners, and an all-time miner leaderboard — for anyone
 mining in the shared pool, solo, on rented rigs, or on a home CPU/GPU.
 
 Reads the public Promethium explorer API. No account, no packages — Python
-standard library only. Optional: an MRR API key (rented-rig hashrate) or a local
-miner log path (home CPU/GPU hashrate).
+standard library only. Optional: MRR or NiceHash API keys (rented hashrate) or a
+local miner log path (home CPU/GPU hashrate).
 
 ----------------------------------  QUICK START  ----------------------------------
 1. Install Python 3:  https://www.python.org/downloads/  (Windows: tick "Add to PATH")
@@ -24,7 +24,7 @@ Want to start mining?   ->  https://promethium.work/docs/mining-pool
 -----------------------------------------------------------------------------------
 MIT licensed. Not affiliated with the Promethium project — a community tool.
 """
-import hmac, hashlib, time, json, threading, urllib.request, urllib.parse, collections, re
+import hmac, hashlib, time, json, threading, urllib.request, urllib.parse, collections, re, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ============================ CONFIG — EDIT THESE ============================
@@ -32,6 +32,9 @@ PROM_ADDRESS   = "prom1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"   # <-- your pro
 PROM_ADDRESSES = []          # optional: list ALL your addresses to aggregate, e.g. ["prom1q...a","prom1q...b"]
 MRR_KEY        = ""          # optional: MiningRigRentals API key  -> shows rented-rig hashrate
 MRR_SECRET     = ""          # optional: MiningRigRentals API secret
+NICEHASH_ORG   = ""          # optional: NiceHash Organization ID -> shows NiceHash-rented hashrate
+NICEHASH_KEY   = ""          # optional: NiceHash API key code
+NICEHASH_SECRET= ""          # optional: NiceHash API secret
 MINER_LOG      = ""          # optional: full path to a local cpuminer/ccminer log -> home CPU/GPU hashrate
 PORT           = 8899        # dashboard served at http://localhost:PORT
 HOST           = "127.0.0.1" # set "0.0.0.0" to reach it from other devices on your LAN
@@ -40,6 +43,7 @@ WINDOW         = 50          # recent blocks scanned for the block-winners board
 
 EXP = "https://promethium.work/api/explorer"
 MRR = "https://www.miningrigrentals.com/api/v2"
+NH  = "https://api2.nicehash.com"
 UA  = {"User-Agent": "prom-dashboard"}
 MULT = {"hash":1,"kh":1e3,"mh":1e6,"gh":1e9,"th":1e12,"ph":1e15}
 SUPPLY_CAP = 21_000_000      # Bitcoin-fork default; edit if the project's cap differs
@@ -47,6 +51,7 @@ HALVING_INTERVAL = 210_000
 POOL_HOST = "stratum.promethium.work"; POOL_PORT = 3337; SOLO_PORT = 3335
 
 HAVE_MRR = bool(MRR_KEY and MRR_SECRET and "xxxx" not in MRR_KEY)
+HAVE_NH  = bool(NICEHASH_ORG and NICEHASH_KEY and NICEHASH_SECRET)
 MY = set([PROM_ADDRESS] + [a for a in PROM_ADDRESSES if a]) - {""}
 MY = {a for a in MY if "xxxx" not in a}
 
@@ -66,6 +71,15 @@ def mrr(path):
     s = hmac.new(MRR_SECRET.encode(), (MRR_KEY+n+sig).encode(), hashlib.sha1).hexdigest()
     h = {"x-api-key": MRR_KEY, "x-api-nonce": n, "x-api-sign": s, "User-Agent": "d"}
     return jget(MRR+path, headers=h, timeout=15)
+
+def nicehash(path, query=""):
+    """NiceHash API v2 GET. Signs with HMAC-SHA256 over null-separated fields."""
+    t = str(int(time.time()*1000)); n = str(uuid.uuid4())
+    msg = "\x00".join([NICEHASH_KEY, t, n, "", NICEHASH_ORG, "", "GET", path, query])
+    sig = hmac.new(NICEHASH_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    h = {"X-Time": t, "X-Nonce": n, "X-Organization-Id": NICEHASH_ORG,
+         "X-Request-Id": str(uuid.uuid4()), "X-Auth": NICEHASH_KEY+":"+sig, "Accept": "application/json"}
+    return jget(NH+path+("?"+query if query else ""), headers=h, timeout=15)
 
 def miner_log_hps():
     if not MINER_LOG: return 0.0
@@ -161,6 +175,19 @@ def update_loop():
             if MINER_LOG:
                 rigs.append({"name": "local miner (log)", "src": "Local", "hps": nice_hps(miner_log_hps()),
                              "where": "home", "status": "online" if miner_log_hps() else "idle"})
+            if HAVE_NH:
+                try:
+                    orders = nicehash("/main/api/v2/hashpower/myOrders",
+                                      "algorithm=SHA256&active=true&limit=100").get("list", [])
+                    for o in orders:
+                        spd = float(o.get("acceptedCurrentSpeed", 0)) * 1e15   # NiceHash SHA-256 orders are quoted in PH/s
+                        your_hps += spd
+                        rigs.append({"name": f"NiceHash #{str(o.get('id',''))[:8]}", "src": "NiceHash",
+                                     "hps": nice_hps(spd), "where": o.get("market", "NH"),
+                                     "status": "active" if o.get("alive", True) else "ended"})
+                except Exception as e:
+                    rigs.append({"name": "(NiceHash error — check API key)", "src": "", "hps": "",
+                                 "where": str(e)[:24], "status": ""})
 
             net_pct   = 100*your_hps/nethps if nethps else 0
             share_pct = 100*mine/total

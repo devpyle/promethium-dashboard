@@ -49,6 +49,7 @@ curl -O https://promethium.work/downloads/prom-keygen.py && python3 prom-keygen.
 | `PROM_ADDRESS` | ✅ | Your `prom1…` payout address — powers the "Your Miner" panels |
 | `PROM_ADDRESSES` | optional | Extra addresses to aggregate into your totals |
 | `MRR_KEY` / `MRR_SECRET` | optional | MiningRigRentals API key → shows **rented-rig** hashrate (view-only; no withdraw needed) |
+| `NICEHASH_ORG` / `NICEHASH_KEY` / `NICEHASH_SECRET` | optional | NiceHash API keys → shows **NiceHash-rented** hashpower (your active SHA-256 orders) |
 | `MINER_LOG` | optional | Path to a local cpuminer/ccminer log → **home CPU/GPU** hashrate |
 | `HOST` | optional | `127.0.0.1` (local only) or `0.0.0.0` (reach it from other devices on your LAN) |
 
