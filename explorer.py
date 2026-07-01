@@ -39,7 +39,7 @@ MINER_LOG      = ""          # optional: full path to a local cpuminer/ccminer l
 PORT           = 8899        # dashboard served at http://localhost:PORT
 HOST           = "127.0.0.1" # set "0.0.0.0" to reach it from other devices on your LAN
 WINDOW         = 50          # recent blocks scanned for the block-winners board / your share
-POOL_WALLETS   = []          # optional: shared-pool coinbase address(es) to flag with a globe in block winners/recent blocks
+POOL_WALLETS   = ["prom1qspqnn7eyu5symh7ykqg29r97rf40nqhh8cerdj"]   # shared-pool coinbase — flagged with a globe in winners/recent blocks
 # ===========================================================================
 
 EXP = "https://promethium.work/api/explorer"
