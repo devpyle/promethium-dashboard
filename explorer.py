@@ -251,7 +251,9 @@ def update_loop():
                          "lp_total": (pstats.get("pool", {}).get("last_payout") or {}).get("total", 0),
                          "lp_recips": (pstats.get("pool", {}).get("last_payout") or {}).get("recipients", 0),
                          "hps": round(float(pstats.get("pool", {}).get("hashrate", 0))/1e15, 2),
-                         "miners": pstats.get("pool", {}).get("miners", 0)},
+                         "miners": pstats.get("pool", {}).get("miners", 0),
+                         "active": pstats.get("pool", {}).get("active_miners", 0),
+                         "blocks_won": pstats.get("pool", {}).get("blocks_won", 0)},
                 "pool_host": POOL_HOST, "pool_port": POOL_PORT, "solo_port": SOLO_PORT}
         except Exception as e:
             if STATE.get("ready"): STATE = {**STATE, "stale": True, "error": str(e)}
@@ -395,6 +397,13 @@ function render(d){
   <div class=card><div class=k>Next Halving</div><div class="v">~${d.halving_days}<small>d</small></div></div>
   <div class=card><div class=k>Holders</div><div class="v">${fmt(d.holders)}</div></div>
  </div>
+ <div class=card style="margin-top:10px"><div class=k>🌐 Shared Pool · :${d.pool_port} · PPLNS</div>
+  <div style="display:flex;gap:30px;align-items:baseline;margin-top:9px;flex-wrap:wrap">
+   <div><span class="v cy" style="font-size:23px;margin:0">${d.pool.hps>=1?d.pool.hps+' PH/s':Math.round(d.pool.hps*1000)+' TH/s'}</span> <small style="color:var(--dim)">pool hashrate</small></div>
+   <div><b class=cy>${d.pool.hps&&d.nethps_ph?(d.pool.hps/d.nethps_ph*100).toFixed(0):0}%</b> <small style="color:var(--dim)">of network</small></div>
+   <div><b>${d.pool.active}/${d.pool.miners}</b> <small style="color:var(--dim)">miners active</small></div>
+   <div><b>${fmt(d.pool.blocks_won)}</b> <small style="color:var(--dim)">blocks won by pool</small></div>
+  </div></div>
  <div class=sec><span class=t>Your Miner</span><span class=ln></span><span class=pill>pool · solo · rented · local</span></div>
  ${you?`<div class="grid g4">
   <div class=card><div class=k>PROM Held</div><div class="v">${fmt(d.balance)}</div><div class=s>${d.blocks_total} coinbase utxos${d.n_wallets>1?' · '+d.n_wallets+' wallets':''}</div></div>
