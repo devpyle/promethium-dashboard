@@ -150,6 +150,14 @@ def update_loop():
             chain = jget(f"{EXP}/chain")
             tip   = int(chain["height"]); diff = chain["difficulty"]
             nethps = float(chain["networkHashps"]); avgbt = float(chain.get("avgBlockTime") or 0)
+            if not avgbt:                        # API doesn't always return avgBlockTime — derive it
+                lat = chain.get("latest") or []
+                if len(lat) >= 2:
+                    dt = (lat[0].get("time", 0) or 0) - (lat[-1].get("time", 0) or 0)
+                    dh = (lat[0].get("height", 0) or 0) - (lat[-1].get("height", 0) or 0)
+                    if dh > 0 and dt > 0: avgbt = dt / dh
+                if not avgbt and nethps:          # last resort: theoretical from difficulty + hashrate
+                    avgbt = float(diff) * 4294967296.0 / nethps
             reward = 50 >> (tip // HALVING_INTERVAL)
 
             lo = tip - WINDOW + 1
