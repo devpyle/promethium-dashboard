@@ -162,6 +162,17 @@ def update_loop():
 
             lo = tip - WINDOW + 1
             for h in range(lo, tip+1): block_at(h)          # fill/refresh window
+            # network-hashrate trend: rolling 6-block hashrate across the window (sparkline)
+            def _hps(nb):
+                a = block_info.get(tip); b = block_info.get(tip-nb)
+                if a and b and (a.get("time") or 0) > (b.get("time") or 0):
+                    return round(float(diff)*4294967296.0*nb/(a["time"]-b["time"])/1e15, 2)
+                return 0
+            _sw = 6; hps_series = []
+            for _h in range(lo+_sw, tip+1):
+                _a = block_info.get(_h); _b = block_info.get(_h-_sw)
+                if _a and _b and (_a.get("time") or 0) > (_b.get("time") or 0):
+                    hps_series.append(round(float(diff)*4294967296.0*_sw/(_a["time"]-_b["time"])/1e15, 3))
             win = {h: block_info.get(h, {}).get("miner") for h in range(lo, tip+1)}
             cnt = collections.Counter(m for m in win.values() if m)
             total = sum(cnt.values()) or 1
@@ -244,6 +255,7 @@ def update_loop():
                 "n_wallets": len(MY), "configured": bool(MY),
                 # network
                 "tip": tip, "diff": diff, "nethps_ph": round(nethps/1e15, 2), "nethps_th": round(nethps/1e12, 0),
+                "hps_series": hps_series, "hps_10": _hps(10), "hps_120": round(nethps/1e15, 2),
                 "blocktime": round(avgbt, 1), "reward": reward, "blocks24h": round(86400/avgbt) if avgbt else 0,
                 "mined": round(mined), "cap": SUPPLY_CAP, "mined_pct": round(100*mined/SUPPLY_CAP, 1),
                 "halving_days": halving_days, "holders": rl.get("holders", 0),
@@ -361,6 +373,7 @@ footer{margin-top:22px;text-align:center;color:var(--faint);font-size:10.5px;tex
 <script>
 const fmt=n=>(n==null?'-':Number(n).toLocaleString());
 const shrt=a=>a?a.slice(0,10)+'…'+a.slice(-7):'';
+const spark=(arr,w,h)=>{if(!arr||arr.length<2)return '';const mn=Math.min(...arr),mx=Math.max(...arr),r=(mx-mn)||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1)*w).toFixed(1)},${(h-1-(v-mn)/r*(h-3)).toFixed(1)}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="margin-top:7px;display:block"><polygon points="0,${h} ${pts} ${w},${h}" fill="rgba(0,240,255,.10)"/><polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="1.5"/></svg>`;};
 async function doLookup(){
  const q=document.getElementById('q').value.trim();if(!q)return;
  const el=document.getElementById('lookres');el.textContent='looking up…';
@@ -394,7 +407,7 @@ function render(d){
  <div class=sec><span class=t>Network</span><span class=ln></span><span class=pill>$PROM · SHA-256d</span></div>
  <div class="grid g4">
   <div class="card hot"><div class=k>Block Height</div><div class="v">${fmt(d.tip)}</div><div class=s>latest ${d.feed&&d.feed[0]?ago(d.feed[0].ago)+' ago':''}</div></div>
-  <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.nethps_ph} <small>PH/s</small></div><div class=s>≈ ${fmt(d.nethps_th)} TH/s all miners</div></div>
+  <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.hps_10||d.nethps_ph} <small>PH/s</small></div><div class=s>live (last 10 blk) · <span style="color:var(--dim)">~2h avg ${d.hps_120} PH</span></div>${spark(d.hps_series,150,30)}</div>
   <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>retarget every 2016 blocks</div></div>
   <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${d.blocktime}<small>s</small></div><div class=s>across recent blocks</div></div>
  </div>
