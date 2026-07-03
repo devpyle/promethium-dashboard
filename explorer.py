@@ -355,6 +355,12 @@ def update_loop():
 
             # shared-pool payouts + pool-measured hashrate (cached ~30s to spare the pool API)
             pstats = pool_wide(); pm = pool_me_agg()
+            _pp = pstats.get("pool", {}) or {}
+            _bw = int(_pp.get("blocks_won", 0) or 0); _bo = int(_pp.get("blocks_orphaned", 0) or 0)
+            pool_top = [{"addr": e.get("address"), "paid": round(float(e.get("paid", 0) or 0), 2),
+                         "pending": round(float(e.get("pending", 0) or 0), 2),
+                         "you": e.get("address") in MY, "pool": e.get("address") in POOL_WALLETS}
+                        for e in (pstats.get("top") or []) if e.get("address")][:25]
             your_hps += pm["hps"]
 
             net_pct   = 100*your_hps/nethps if nethps else 0
@@ -402,13 +408,19 @@ def update_loop():
                 "rigs": rigs, "feed": feed, "winners": winners, "leaders": leaders,
                 "pool_me": {"found": pm["found"], "pending": round(pm["pending"], 2),
                             "paid": round(pm["paid"], 2), "earned": round(pm["earned"], 2), "hps": nice_hps(pm["hps"])},
-                "pool": {"lp_ts": (pstats.get("pool", {}).get("last_payout") or {}).get("ts", 0),
-                         "lp_total": (pstats.get("pool", {}).get("last_payout") or {}).get("total", 0),
-                         "lp_recips": (pstats.get("pool", {}).get("last_payout") or {}).get("recipients", 0),
-                         "hps": round(float(pstats.get("pool", {}).get("hashrate", 0))/1e15, 2),
-                         "miners": pstats.get("pool", {}).get("miners", 0),
-                         "active": pstats.get("pool", {}).get("active_miners", 0),
-                         "blocks_won": pstats.get("pool", {}).get("blocks_won", 0)},
+                "pool": {"lp_ts": (_pp.get("last_payout") or {}).get("ts", 0),
+                         "lp_total": (_pp.get("last_payout") or {}).get("total", 0),
+                         "lp_recips": (_pp.get("last_payout") or {}).get("recipients", 0),
+                         "hps": round(float(_pp.get("hashrate", 0) or 0)/1e15, 2),
+                         "miners": _pp.get("miners", 0), "active": _pp.get("active_miners", 0),
+                         "blocks_won": _bw, "blocks_mature": int(_pp.get("blocks_mature", 0) or 0),
+                         "blocks_immature": int(_pp.get("blocks_immature", 0) or 0), "blocks_orphaned": _bo,
+                         "orphan_rate": round(100*_bo/(_bw+_bo), 1) if (_bw+_bo) else 0,
+                         "avg_bt": round(float(_pp.get("avg_block_time", 0) or 0), 1),
+                         "wallet_balance": round(float(_pp.get("wallet_balance", 0) or 0)),
+                         "total_paid": round(float(_pp.get("total_paid", 0) or 0)),
+                         "total_pending": round(float(_pp.get("total_pending", 0) or 0))},
+                "pool_top": pool_top,
                 "pool_wallet": pool_wallet,
                 "pool_host": POOL_HOST, "pool_port": POOL_PORT, "solo_port": SOLO_PORT}
         except Exception as e:
@@ -580,7 +592,17 @@ function render(d){
    <div><b>${fmt(d.pool.blocks_won)}</b> <small style="color:var(--dim)">blocks won by pool</small></div>
    ${d.pool_wallet?`<div><b class=cy>${fmt(Math.round(d.pool_wallet.balance))}</b> <small style="color:var(--dim)">PROM in pool wallet${d.pool_wallet.rank?' · rank #'+d.pool_wallet.rank:''}</small></div>`:''}
   </div>
+  <div style="display:flex;gap:24px;align-items:baseline;margin-top:11px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px">
+   <div><b>${mmss(d.pool.avg_bt)}</b> <small style="color:var(--dim)">pool block time</small></div>
+   <div><b class=pos>${fmt(d.pool.blocks_mature)}</b><span style="color:var(--dim)"> / ${fmt(d.pool.blocks_immature)}</span> <small style="color:var(--dim)">mature / immature</small></div>
+   <div><b class="${d.pool.orphan_rate>10?'red':'lt'}">${d.pool.orphan_rate}%</b> <small style="color:var(--dim)">orphaned (${fmt(d.pool.blocks_orphaned)})</small></div>
+   <div><b class=cy>${fmt(d.pool.total_paid)}</b> <small style="color:var(--dim)">PROM paid all-time</small></div>
+   <div><b>${fmt(d.pool.total_pending)}</b> <small style="color:var(--dim)">pending</small></div>
+  </div>
   <div style="margin-top:8px;font-size:10.5px;color:var(--faint);word-break:break-all">🌐 pool wallet: ${d.pool_wallet?d.pool_wallet.addr:''}</div></div>
+ ${d.pool_top&&d.pool_top.length?`<div class=tbl style="margin-top:10px"><div class=hd><span class=k>🏭 Top Pool Miners</span><span class=r>by earnings · shared pool</span></div>
+  <table><tr><th class=rank>#</th><th>miner</th><th>paid</th><th>pending</th></tr>
+  ${d.pool_top.map((m,i)=>`<tr class="${m.you?'you':''}"><td class=rank>${i+1}</td><td>${m.you?'★ YOU':(m.pool?'🌐 ':'')+shrt(m.addr)}</td><td class=cy>${fmt(Math.round(m.paid))}</td><td>${fmt(Math.round(m.pending))}</td></tr>`).join('')}</table></div>`:''}
  ${nodeSec}
  <div class=sec><span class=t>Your Miner</span><span class=ln></span><span class=pill>pool · solo · rented · local</span></div>
  ${you?`<div class="grid g4">
