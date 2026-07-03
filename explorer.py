@@ -559,7 +559,7 @@ function render(d){
   <div class="card hot"><div class=k>Block Height</div><div class="v">${fmt(d.tip)}</div><div class=s>latest ${d.feed&&d.feed[0]?ago(d.feed[0].ago)+' ago':''}</div></div>
   <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.hps_10||d.nethps_ph} <small>PH/s</small></div><div class=s>live (last 10 blk) · <span style="color:var(--dim)">~2h avg ${d.hps_120} PH</span></div>${spark(d.hps_series,150,30)}</div>
   <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>retarget every 2016 blocks</div></div>
-  <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${mmss(d.blocktime)}</div><div class=s>across recent blocks</div></div>
+  <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${mmss(d.blocktime)}</div><div class=s>10m target · ${d.blocktime<540?'<span class=cy>running fast (diff ↑)</span>':d.blocktime>660?'<span style="color:var(--red)">running slow (diff ↓)</span>':'on pace'}</div></div>
  </div>
  <div class="grid g6" style="margin-top:10px">
   <div class=card><div class=k>Block Reward</div><div class="v">${d.reward}<small> PROM</small></div></div>
