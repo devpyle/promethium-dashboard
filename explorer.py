@@ -24,7 +24,7 @@ Want to start mining?   ->  https://promethium.work/docs/mining-pool
 -----------------------------------------------------------------------------------
 MIT licensed. Not affiliated with the Promethium project — a community tool.
 """
-import hmac, hashlib, time, json, threading, urllib.request, urllib.parse, collections, re, uuid
+import hmac, hashlib, time, json, threading, urllib.request, urllib.parse, collections, re, uuid, base64, os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ============================ CONFIG — EDIT THESE ============================
@@ -40,6 +40,12 @@ PORT           = 8899        # dashboard served at http://localhost:PORT
 HOST           = "127.0.0.1" # set "0.0.0.0" to reach it from other devices on your LAN
 WINDOW         = 50          # recent blocks scanned for the block-winners board / your share
 POOL_WALLETS   = ["prom1qspqnn7eyu5symh7ykqg29r97rf40nqhh8cerdj"]   # shared-pool coinbase — flagged with a globe in winners/recent blocks
+# --- Optional: run your own node? point the dashboard at its local RPC to light up the "Your Node" panel ---
+NODE_RPC       = ""          # optional: local promd RPC, e.g. "http://127.0.0.1:18132"  (empty = hide the Your Node panel)
+NODE_COOKIE    = ""          # path to your node's .cookie file, e.g. "~/.prom/.cookie"  (easiest auth)
+NODE_RPC_USER  = ""          # OR set rpcuser / rpcpassword instead of a cookie
+NODE_RPC_PASS  = ""
+NODE_GEO       = True        # roll your peers up into a COUNTRY count (via ip-api.com). No IPs are ever shown or stored. Set False to skip the geo call entirely.
 # ===========================================================================
 
 EXP = "https://promethium.work/api/explorer"
@@ -54,6 +60,7 @@ POOL_HOST = "stratum.promethium.work"; POOL_PORT = 3337; SOLO_PORT = 3335
 
 HAVE_MRR = bool(MRR_KEY and MRR_SECRET and "xxxx" not in MRR_KEY)
 HAVE_NH  = bool(NICEHASH_ORG and NICEHASH_KEY and NICEHASH_SECRET)
+HAVE_NODE = bool(NODE_RPC)
 MY = set([PROM_ADDRESS] + [a for a in PROM_ADDRESSES if a]) - {""}
 MY = {a for a in MY if "xxxx" not in a}
 
@@ -130,6 +137,82 @@ def pool_me_agg():
                 pm["earned"]  += float(m.get("earned", 0));  pm["hps"]  += float(m.get("hashrate", 0))
         except Exception: pass
     _pm[0] = pm; _pm[1] = now; return pm
+
+# ---- Your Node (optional): reads YOUR OWN local promd via RPC. Privacy: only aggregate
+#      counts and a per-COUNTRY peer rollup ever leave this function — never any peer IP. ----
+def _rpc_auth():
+    if NODE_RPC_USER:
+        return NODE_RPC_USER + ":" + NODE_RPC_PASS
+    if NODE_COOKIE:
+        return open(os.path.expanduser(NODE_COOKIE)).read().strip()
+    return None
+
+def rpc(method, params=None):
+    auth = _rpc_auth()
+    if auth is None: raise RuntimeError("no NODE_COOKIE or NODE_RPC_USER set")
+    body = json.dumps({"jsonrpc": "1.0", "id": "dash", "method": method, "params": params or []}).encode()
+    req = urllib.request.Request(NODE_RPC, data=body, headers={
+        "Content-Type": "text/plain",
+        "Authorization": "Basic " + base64.b64encode(auth.encode()).decode()})
+    r = json.load(urllib.request.urlopen(req, timeout=8))
+    if r.get("error"): raise RuntimeError(r["error"])
+    return r["result"]
+
+_geo = {}                      # ip -> countryCode  (cached across ticks; no IPs are ever emitted)
+def geo_countries(ips):
+    """Return {countryCode: count} for a list of peer IPs. IPs are used only to look up a
+    country and are never returned/stored beyond this in-memory cache. Best-effort; skips on failure."""
+    want = [ip for ip in ips if ip and ip not in _geo and ":" not in ip.split("%")[0][:4]
+            and not ip.startswith(("10.", "192.168.", "127.", "172.", "fd", "fe80"))]
+    for i in range(0, len(want), 100):
+        chunk = want[i:i+100]
+        try:
+            req = urllib.request.Request("http://ip-api.com/batch?fields=countryCode,query",
+                data=json.dumps([{"query": ip} for ip in chunk]).encode(),
+                headers={"Content-Type": "application/json"})
+            for row in json.load(urllib.request.urlopen(req, timeout=8)):
+                if row.get("query"): _geo[row["query"]] = row.get("countryCode") or "?"
+        except Exception:
+            break
+    cc = collections.Counter()
+    for ip in ips:
+        c = _geo.get(ip)
+        if c: cc[c] += 1
+    return dict(cc)
+
+_node = [None, 0.0]
+def node_stats(net_tip):
+    """Snapshot of the operator's OWN node: sync state + peer counts + country rollup. Cached ~20s."""
+    now = time.time()
+    if _node[0] is not None and now-_node[1] < 20: return _node[0]
+    try:
+        bc = rpc("getblockchaininfo"); ni = rpc("getnetworkinfo")
+        blocks = int(bc.get("blocks", 0)); headers = int(bc.get("headers", blocks))
+        vp = float(bc.get("verificationprogress", 0))
+        behind = max((net_tip or headers) - blocks, headers - blocks, 0)
+        synced = behind <= 1 and vp >= 0.9999
+        cin = ni.get("connections_in"); cout = ni.get("connections_out")
+        countries = {}
+        if cin is None or cout is None or NODE_GEO:
+            peers = rpc("getpeerinfo")
+            if cin is None:  cin  = sum(1 for p in peers if p.get("inbound"))
+            if cout is None: cout = sum(1 for p in peers if not p.get("inbound"))
+            if NODE_GEO:
+                ips = [str(p.get("addr", "")).rsplit(":", 1)[0].strip("[]") for p in peers]
+                countries = geo_countries(ips)
+        mp = 0
+        try: mp = int(rpc("getmempoolinfo").get("size", 0))
+        except Exception: pass
+        top = sorted(countries.items(), key=lambda x: -x[1])
+        node = {"ok": True, "blocks": blocks, "headers": headers, "behind": behind,
+                "synced": synced, "vp": round(vp*100, 2), "chain": bc.get("chain", ""),
+                "peers": int(ni.get("connections", (cin or 0)+(cout or 0))),
+                "cin": cin or 0, "cout": cout or 0, "mempool": mp,
+                "subver": (ni.get("subversion") or "").strip("/"),
+                "countries": [{"cc": c, "n": n} for c, n in top]}
+    except Exception as e:
+        node = {"ok": False, "err": str(e)[:80]}
+    _node[0] = node; _node[1] = now; return node
 
 def block_at(h):
     if h in block_info: return block_info[h]
@@ -251,7 +334,10 @@ def update_loop():
             halving_blocks = HALVING_INTERVAL - (tip % HALVING_INTERVAL)
             halving_days   = round(halving_blocks*avgbt/86400, 1) if avgbt else 0
 
+            node = node_stats(tip) if HAVE_NODE else None
+
             STATE = {"ready": True, "ts": now, "have_mrr": HAVE_MRR, "have_hps": bool(your_hps),
+                "node": node,
                 "n_wallets": len(MY), "configured": bool(MY),
                 # network
                 "tip": tip, "diff": diff, "nethps_ph": round(nethps/1e15, 2), "nethps_th": round(nethps/1e12, 0),
@@ -373,6 +459,7 @@ footer{margin-top:22px;text-align:center;color:var(--faint);font-size:10.5px;tex
 <script>
 const fmt=n=>(n==null?'-':Number(n).toLocaleString());
 const shrt=a=>a?a.slice(0,10)+'…'+a.slice(-7):'';
+const ccFlag=cc=>(cc&&cc.length==2&&/[A-Z]{2}/.test(cc))?String.fromCodePoint(...[...cc].map(c=>0x1F1E6+c.charCodeAt(0)-65)):'🏳';
 const spark=(arr,w,h)=>{if(!arr||arr.length<2)return '';const mn=Math.min(...arr),mx=Math.max(...arr),r=(mx-mn)||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1)*w).toFixed(1)},${(h-1-(v-mn)/r*(h-3)).toFixed(1)}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="margin-top:7px;display:block"><polygon points="0,${h} ${pts} ${w},${h}" fill="rgba(0,240,255,.10)"/><polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="1.5"/></svg>`;};
 async function doLookup(){
  const q=document.getElementById('q').value.trim();if(!q)return;
@@ -403,6 +490,22 @@ function render(d){
  const lbnav=lbPages>1?`<span class=pg><button onclick="lbGo(-1)" ${lbPage==0?'disabled':''}>‹ prev</button> ${lbPage+1}/${lbPages} <button onclick="lbGo(1)" ${lbPage>=lbPages-1?'disabled':''}>next ›</button></span>`:'';
  const feed=(d.feed||[]).map(f=>`<div class=row><span class="h">#${fmt(f.h)}</span><span class=w>${f.miner?(f.pool?'🌐 ':'')+shrt(f.miner):'—'}${f.you?' ★ you':''}</span><span class=rw>+${f.reward}</span><span class=tm>${ago(f.ago)}</span></div>`).join('');
  const rigs=(d.rigs||[]).map(r=>`<tr><td>${r.name||'—'}</td><td>${r.src?('<span class="tag2'+(r.src=='Local'?' gpu':'')+'">'+r.src+'</span>'):''}</td><td>${r.hps||'—'}</td><td>${r.where?('<span class=flag>'+r.where+'</span>'):''}</td><td class=lt>${r.status||''}</td></tr>`).join('')||'<tr><td colspan=5 style="color:#8fa9e8">no rig/log source — add an MRR key or a miner-log path in CONFIG (optional)</td></tr>';
+ let nodeSec='';
+ if(d.node){const n=d.node;
+  if(n.ok){
+   const roll=(n.countries||[]).map(c=>`${ccFlag(c.cc)}${c.n}`).join(' ');
+   nodeSec=`<div class=sec><span class=t>Your Node</span><span class=ln></span><span class=pill>local promd · self-hosted</span></div>
+   <div class="grid g4">
+    <div class="card"><div class=k>Sync Status</div><div class="v ${n.synced?'pos':'red'}">${n.synced?'SYNCED':fmt(n.behind)+' behind'}</div><div class=s>height ${fmt(n.blocks)} · ${n.vp}% verified</div></div>
+    <div class="card"><div class=k>Peers</div><div class="v cy">${n.peers}</div><div class=s>${n.cin} in · ${n.cout} out</div></div>
+    <div class="card"><div class=k>Mempool</div><div class="v">${fmt(n.mempool)}</div><div class=s>txns waiting</div></div>
+    <div class="card"><div class=k>Node Version</div><div class="v" style="font-size:15px;word-break:break-all">${n.subver||'—'}</div><div class=s>${n.chain||''} chain</div></div>
+   </div>${roll?`<div class=note style="border-style:solid">🌍 Your peers span <b>${(n.countries||[]).length}</b> ${n.countries.length==1?'country':'countries'}: <span style="font-size:14px">${roll}</span> &nbsp;<span style="color:var(--faint)">· counts only — no IPs shown or stored</span></div>`:''}`;
+  } else {
+   nodeSec=`<div class=sec><span class=t>Your Node</span><span class=ln></span><span class=pill>local promd</span></div>
+   <div class=card style="color:var(--red)">node RPC unreachable — check <b>NODE_RPC</b> / <b>NODE_COOKIE</b> in CONFIG. <span style="color:var(--dim)">(${n.err||''})</span></div>`;
+  }
+ }
  document.getElementById('app').innerHTML=`
  <div class=sec><span class=t>Network</span><span class=ln></span><span class=pill>$PROM · SHA-256d</span></div>
  <div class="grid g4">
@@ -426,6 +529,7 @@ function render(d){
    <div><b>${d.pool.active}/${d.pool.miners}</b> <small style="color:var(--dim)">miners active</small></div>
    <div><b>${fmt(d.pool.blocks_won)}</b> <small style="color:var(--dim)">blocks won by pool</small></div>
   </div></div>
+ ${nodeSec}
  <div class=sec><span class=t>Your Miner</span><span class=ln></span><span class=pill>pool · solo · rented · local</span></div>
  ${you?`<div class="grid g4">
   <div class=card><div class=k>PROM Held</div><div class="v">${fmt(d.balance)}</div><div class=s>${d.blocks_total} coinbase utxos${d.n_wallets>1?' · '+d.n_wallets+' wallets':''}</div></div>

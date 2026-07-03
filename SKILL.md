@@ -30,6 +30,7 @@ curl -O https://raw.githubusercontent.com/devpyle/promethium-dashboard/main/expl
 - **`PROM_ADDRESSES`** — optional list of extra addresses to aggregate.
 - **`MRR_KEY` / `MRR_SECRET`** — optional MiningRigRentals API key → shows rented-rig hashrate. View-only is fine; it does **not** need withdraw.
 - **`MINER_LOG`** — optional path to a local cpuminer/ccminer log → home CPU/GPU hashrate.
+- **`NODE_RPC`** (+ `NODE_COOKIE` or `NODE_RPC_USER`/`NODE_RPC_PASS`) — optional; point at the user's **own** local `promd` RPC to light up the **Your Node** panel (sync status, peer count, mempool, version, per-country peer rollup). Privacy: the panel shows counts only — **it never displays or stores a peer IP**. `NODE_GEO=False` skips the country lookup entirely.
 - **`HOST`** — leave `127.0.0.1` for local-only, or set `0.0.0.0` to reach it from other devices on the LAN.
 
 Ask the user for their address before editing. Never ask for or store private keys.

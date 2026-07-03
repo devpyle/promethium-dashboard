@@ -22,6 +22,9 @@ winners, and an all-time miner leaderboard. No `pip install`, no account.
    - `PROM_ADDRESS` (required) and optionally `PROM_ADDRESSES` (aggregate several).
    - Optional `MRR_KEY`/`MRR_SECRET` (rented-rig hashrate, view-only) and
      `MINER_LOG` (path to a local miner log for home CPU/GPU hashrate).
+   - Optional `NODE_RPC` (+ `NODE_COOKIE` or `NODE_RPC_USER`/`NODE_RPC_PASS`) if the
+     user runs their own node → the **Your Node** panel (sync/peers/mempool/version +
+     per-country peer rollup). Counts only — never shows or stores a peer IP.
    - `HOST=0.0.0.0` only if the user wants LAN access.
 4. **Run** `python3 explorer.py` and confirm `http://localhost:8899` serves.
 5. Offer to open the browser.

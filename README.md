@@ -51,6 +51,8 @@ curl -O https://promethium.work/downloads/prom-keygen.py && python3 prom-keygen.
 | `MRR_KEY` / `MRR_SECRET` | optional | MiningRigRentals API key → shows **rented-rig** hashrate (view-only; no withdraw needed) |
 | `NICEHASH_ORG` / `NICEHASH_KEY` / `NICEHASH_SECRET` | optional | NiceHash API keys → shows **NiceHash-rented** hashpower (your active SHA-256 orders) |
 | `MINER_LOG` | optional | Path to a local cpuminer/ccminer log → **home CPU/GPU** hashrate |
+| `NODE_RPC` + `NODE_COOKIE` (or `NODE_RPC_USER`/`NODE_RPC_PASS`) | optional | Point at **your own** local `promd` RPC → lights up the **Your Node** panel (sync status, peer count, mempool, version) |
+| `NODE_GEO` | optional | Roll your peers up into a **country count** (`🇺🇸4 🇩🇪2 …`). Uses ip-api.com; **no IP is ever shown or stored**. Set `False` to skip the geo call entirely |
 | `HOST` | optional | `127.0.0.1` (local only) or `0.0.0.0` (reach it from other devices on your LAN) |
 
 Without any address it still works as a pure network explorer.
@@ -60,6 +62,7 @@ Without any address it still works as a pure network explorer.
 ## What it shows
 
 - **Network** — height, hashrate, difficulty, block time, reward, blocks/24h, coins mined, next halving, holders
+- **Your Node** *(optional — if you run a node)* — sync status, peer count (in/out), mempool, node version, and a country rollup of your peers. Reads **your own** local `promd`; only counts are shown — **never any peer IP**
 - **Your Miner** — balance, earn rate, hashrate, % of network, blocks won, win efficiency
 - **Your Hardware** — rented rigs (MRR / NiceHash) and/or home CPU/GPU
 - **Pool Payouts** — shared-pool miners auto-see their pending + paid PROM and pool-measured hashrate
