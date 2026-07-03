@@ -506,6 +506,7 @@ footer{margin-top:22px;text-align:center;color:var(--faint);font-size:10.5px;tex
 const fmt=n=>(n==null?'-':Number(n).toLocaleString());
 const shrt=a=>a?a.slice(0,10)+'…'+a.slice(-7):'';
 const ccFlag=cc=>(cc&&cc.length==2&&/[A-Z]{2}/.test(cc))?String.fromCodePoint(...[...cc].map(c=>0x1F1E6+c.charCodeAt(0)-65)):'🏳';
+const mmss=s=>{s=Math.round(Number(s)||0);if(s<60)return s+'s';const m=Math.floor(s/60);return m+'m '+(s%60).toString().padStart(2,'0')+'s';};
 const spark=(arr,w,h)=>{if(!arr||arr.length<2)return '';const mn=Math.min(...arr),mx=Math.max(...arr),r=(mx-mn)||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1)*w).toFixed(1)},${(h-1-(v-mn)/r*(h-3)).toFixed(1)}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="margin-top:7px;display:block"><polygon points="0,${h} ${pts} ${w},${h}" fill="rgba(0,240,255,.10)"/><polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="1.5"/></svg>`;};
 async function doLookup(){
  const q=document.getElementById('q').value.trim();if(!q)return;
@@ -558,7 +559,7 @@ function render(d){
   <div class="card hot"><div class=k>Block Height</div><div class="v">${fmt(d.tip)}</div><div class=s>latest ${d.feed&&d.feed[0]?ago(d.feed[0].ago)+' ago':''}</div></div>
   <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.hps_10||d.nethps_ph} <small>PH/s</small></div><div class=s>live (last 10 blk) · <span style="color:var(--dim)">~2h avg ${d.hps_120} PH</span></div>${spark(d.hps_series,150,30)}</div>
   <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>retarget every 2016 blocks</div></div>
-  <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${d.blocktime}<small>s</small></div><div class=s>across recent blocks</div></div>
+  <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${mmss(d.blocktime)}</div><div class=s>across recent blocks</div></div>
  </div>
  <div class="grid g6" style="margin-top:10px">
   <div class=card><div class=k>Block Reward</div><div class="v">${d.reward}<small> PROM</small></div></div>
