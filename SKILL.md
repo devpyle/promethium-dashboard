@@ -23,7 +23,15 @@ git clone https://github.com/devpyle/promethium-dashboard && cd promethium-dashb
 curl -O https://raw.githubusercontent.com/devpyle/promethium-dashboard/main/explorer.py
 ```
 
-## 2. Configure (edit the CONFIG block at the top of `explorer.py`)
+## 2. Configure (write `dashboard.conf` — do NOT edit the code)
+
+**Preferred:** create a `dashboard.conf` next to `explorer.py` (copy
+`dashboard.conf.example`) with the user's settings — `KEY=value`, one per line. It
+overrides the in-code defaults and keeps settings out of the code so future updates
+(`git pull`) never clobber them. Only edit the CONFIG block in `explorer.py` if the
+user explicitly prefers that.
+
+Settings (same names work in `dashboard.conf`, as env vars, or in the CONFIG block):
 
 - **`PROM_ADDRESS`** — the user's `prom1…` payout address (required for the "Your Miner" panels).
   - No address yet? Get one: `curl -O https://promethium.work/downloads/prom-keygen.py && python3 prom-keygen.py` (**back up the key**).
@@ -33,7 +41,10 @@ curl -O https://raw.githubusercontent.com/devpyle/promethium-dashboard/main/expl
 - **`NODE_RPC`** (+ `NODE_COOKIE` or `NODE_RPC_USER`/`NODE_RPC_PASS`) — optional; point at the user's **own** local `promd` RPC to light up the **Your Node** panel (sync status, peer count, mempool, version, per-country peer rollup). Privacy: the panel shows counts only — **it never displays or stores a peer IP**. `NODE_GEO=False` skips the country lookup entirely.
 - **`HOST`** — leave `127.0.0.1` for local-only, or set `0.0.0.0` to reach it from other devices on the LAN.
 
-Ask the user for their address before editing. Never ask for or store private keys.
+Ask the user for their address first. Never ask for or store private keys.
+
+**Updating later:** `git pull` (or re-`curl` the single file), then restart. The
+user's `dashboard.conf` is untouched, so no settings are lost.
 
 ## 3. Run
 

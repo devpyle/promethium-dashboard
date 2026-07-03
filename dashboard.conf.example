@@ -1,0 +1,42 @@
+# Promethium Dashboard — local settings
+# ---------------------------------------------------------------------------
+# Copy this file to `dashboard.conf` (same folder as explorer.py) and edit.
+# Anything you set here OVERRIDES the CONFIG defaults inside explorer.py — so
+# your settings live OUTSIDE the code and a `git pull` / re-download never wipes
+# them. Environment variables of the same name win over this file.
+#
+#   cp dashboard.conf.example dashboard.conf
+#   # edit dashboard.conf, then:  python3 explorer.py
+#
+# Only include the lines you actually use — delete or leave the rest commented.
+# Format is KEY=value, one per line. No quotes needed. Lines starting with # are ignored.
+# ---------------------------------------------------------------------------
+
+# Your prom1... payout address (required for the "Your Miner" panels)
+PROM_ADDRESS=prom1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Optional: extra addresses to aggregate into your totals (comma- or space-separated)
+# PROM_ADDRESSES=prom1qaaa...,prom1qbbb...
+
+# Optional: MiningRigRentals API key/secret -> shows rented-rig hashrate (view-only is fine)
+# MRR_KEY=
+# MRR_SECRET=
+
+# Optional: NiceHash API keys -> shows NiceHash-rented SHA-256 hashpower
+# NICEHASH_ORG=
+# NICEHASH_KEY=
+# NICEHASH_SECRET=
+
+# Optional: path to a local cpuminer/ccminer log -> home CPU/GPU hashrate
+# MINER_LOG=/home/you/miner.log
+
+# Optional: run your own node? point at its local RPC -> lights up the "Your Node" panel
+# NODE_RPC=http://127.0.0.1:18132
+# NODE_COOKIE=~/.prom/.cookie          # easiest auth — OR set the user/pass pair below
+# NODE_RPC_USER=
+# NODE_RPC_PASS=
+# NODE_GEO=true                        # false to skip the peer country lookup
+
+# Serving
+# PORT=8899
+# HOST=127.0.0.1                       # 0.0.0.0 to reach it from other devices on your LAN

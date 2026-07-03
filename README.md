@@ -42,7 +42,20 @@ curl -O https://promethium.work/downloads/prom-keygen.py && python3 prom-keygen.
 
 ---
 
-## Configure (top of `explorer.py`)
+## Configure
+
+**Recommended:** copy `dashboard.conf.example` to `dashboard.conf` and put your
+settings there — they override the defaults in `explorer.py`, live *outside* the
+code, and survive every update (a `git pull` or re-download never touches them).
+
+```bash
+cp dashboard.conf.example dashboard.conf   # then edit dashboard.conf
+python3 explorer.py
+```
+
+You can also just edit the CONFIG block at the top of `explorer.py` directly if you
+prefer — but then remember your settings live in the file. Either way, the same
+settings are available (env vars of the same name win over everything):
 
 | Setting | Required? | What it does |
 |---|---|---|
@@ -106,6 +119,27 @@ The dashboard's **Get Mining** panel links straight to the official guides:
 - **Agentic mining** → [docs/agentic-mining](https://promethium.work/docs/agentic-mining)
 
 ---
+
+## Updating
+
+New features land often. Because your settings live in `dashboard.conf` (not in the
+code), updating is a one-liner:
+
+```bash
+# cloned with git:
+cd promethium-dashboard && git pull
+
+# grabbed the single file:
+curl -O https://raw.githubusercontent.com/devpyle/promethium-dashboard/main/explorer.py
+
+# using an agent (Claude Code / Codex):
+#   just say "update the Promethium dashboard"
+```
+
+Then restart `python3 explorer.py`. Your `dashboard.conf` is untouched — no
+re-entering addresses or keys. (If you instead edited the CONFIG block inside
+`explorer.py` directly, a `git pull` may conflict on those lines — moving your
+settings into `dashboard.conf` once fixes that for good.)
 
 ## Notes
 

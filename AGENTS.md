@@ -18,7 +18,9 @@ winners, and an all-time miner leaderboard. No `pip install`, no account.
 2. **Get the user's `prom1…` address.** If they don't have one, point them to
    `https://promethium.work/downloads/prom-keygen.py` (they run it; it prints an
    address and saves a key they must back up). Never ask for or handle private keys.
-3. **Edit the CONFIG block** at the top of `explorer.py`:
+3. **Write `dashboard.conf`** (copy `dashboard.conf.example`) — `KEY=value` lines.
+   Prefer this over editing the code: it overrides the CONFIG defaults and survives
+   `git pull`. Keys:
    - `PROM_ADDRESS` (required) and optionally `PROM_ADDRESSES` (aggregate several).
    - Optional `MRR_KEY`/`MRR_SECRET` (rented-rig hashrate, view-only) and
      `MINER_LOG` (path to a local miner log for home CPU/GPU hashrate).
@@ -26,6 +28,7 @@ winners, and an all-time miner leaderboard. No `pip install`, no account.
      user runs their own node → the **Your Node** panel (sync/peers/mempool/version +
      per-country peer rollup). Counts only — never shows or stores a peer IP.
    - `HOST=0.0.0.0` only if the user wants LAN access.
+   To update later: `git pull` (or re-`curl` the file), restart — `dashboard.conf` is untouched.
 4. **Run** `python3 explorer.py` and confirm `http://localhost:8899` serves.
 5. Offer to open the browser.
 

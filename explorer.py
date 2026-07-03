@@ -47,6 +47,39 @@ NODE_RPC_USER  = ""          # OR set rpcuser / rpcpassword instead of a cookie
 NODE_RPC_PASS  = ""
 NODE_GEO       = True        # roll your peers up into a COUNTRY count (via ip-api.com). No IPs are ever shown or stored. Set False to skip the geo call entirely.
 # ===========================================================================
+# Prefer NOT editing the block above. Instead drop a `dashboard.conf` next to this file
+# (copy dashboard.conf.example) with just the settings you want — it OVERRIDES the defaults
+# above, and lives outside the code so `git pull` / re-downloading never wipes your config.
+# Environment variables of the same name win over dashboard.conf. See README "Updating".
+
+_CFG_KEYS = ["PROM_ADDRESS", "PROM_ADDRESSES", "MRR_KEY", "MRR_SECRET", "NICEHASH_ORG",
+             "NICEHASH_KEY", "NICEHASH_SECRET", "MINER_LOG", "PORT", "HOST", "WINDOW",
+             "NODE_RPC", "NODE_COOKIE", "NODE_RPC_USER", "NODE_RPC_PASS", "NODE_GEO"]
+def _cast(cur, val):
+    if isinstance(cur, bool): return str(val).strip().lower() in ("1", "true", "yes", "on")
+    if isinstance(cur, int):  return int(str(val).strip())
+    if isinstance(cur, list): return [x.strip() for x in str(val).replace(",", " ").split() if x.strip()]
+    return str(val).strip()
+def _load_overrides():
+    import os
+    g = globals(); src = {}
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(here, "dashboard.conf"), os.path.join(os.getcwd(), "dashboard.conf")):
+        try:
+            for line in open(path, encoding="utf-8"):
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line: continue
+                k, v = line.split("=", 1); k = k.strip()
+                if k in _CFG_KEYS: src[k] = v.strip().strip('"').strip("'")
+        except FileNotFoundError: pass
+        except Exception as e: print("!! dashboard.conf parse error:", e)
+    for k in _CFG_KEYS:                                   # env vars win over the file
+        if os.environ.get(k): src[k] = os.environ[k]
+    for k, v in src.items():
+        try: g[k] = _cast(g[k], v)
+        except Exception as e: print(f"!! bad value for {k}={v!r} ({e})")
+    if src: print(f"config: loaded {len(src)} setting(s) from dashboard.conf / env")
+_load_overrides()
 
 EXP = "https://promethium.work/api/explorer"
 POOL_API = "https://promethium.work/api/pool"
@@ -328,8 +361,20 @@ def update_loop():
 
             rl = richlist(); mined = float(rl.get("totalMined", 0) or 0)
             leaders = [{"rank": e.get("rank"), "addr": e.get("address"), "bal": float(e.get("balance", 0)),
-                        "pct": e.get("pct", 0), "you": e.get("address") in MY}
+                        "pct": e.get("pct", 0), "you": e.get("address") in MY,
+                        "pool": e.get("address") in POOL_WALLETS}
                        for e in rl.get("top", [])][:100]
+            # shared-pool wallet balance (from the rich list if it's in top-100, else fetched directly)
+            pool_wallet = {"addr": POOL_WALLETS[0] if POOL_WALLETS else "", "balance": 0.0, "rank": None}
+            if POOL_WALLETS:
+                pw = next((e for e in rl.get("top", []) if e.get("address") == POOL_WALLETS[0]), None)
+                if pw:
+                    pool_wallet.update(balance=float(pw.get("balance", 0)), rank=pw.get("rank"))
+                else:
+                    try:
+                        r = jget(f"{EXP}/address/{urllib.parse.quote(POOL_WALLETS[0])}?window=1")
+                        pool_wallet["balance"] = float(r.get("balance", 0))
+                    except Exception: pass
 
             halving_blocks = HALVING_INTERVAL - (tip % HALVING_INTERVAL)
             halving_days   = round(halving_blocks*avgbt/86400, 1) if avgbt else 0
@@ -361,6 +406,7 @@ def update_loop():
                          "miners": pstats.get("pool", {}).get("miners", 0),
                          "active": pstats.get("pool", {}).get("active_miners", 0),
                          "blocks_won": pstats.get("pool", {}).get("blocks_won", 0)},
+                "pool_wallet": pool_wallet,
                 "pool_host": POOL_HOST, "pool_port": POOL_PORT, "solo_port": SOLO_PORT}
         except Exception as e:
             if STATE.get("ready"): STATE = {**STATE, "stale": True, "error": str(e)}
@@ -486,7 +532,7 @@ function render(d){
  const winners=(d.winners||[]).map((w,i)=>`<tr class="${w.you?'you':''}"><td class=rank>${i+1}</td><td>${w.you?'★ YOU':(w.pool?'🌐 ':'')+shrt(w.addr)}</td><td>${w.n}</td><td>${w.pct}%<span class=mbar><i style="width:${Math.min(100,w.pct*100/((d.winners[0]||{}).pct||1))}%"></i></span></td></tr>`).join('');
  const PER=20,allL=d.leaders||[],lbPages=Math.max(1,Math.ceil(allL.length/PER));
  if(lbPage>=lbPages)lbPage=lbPages-1; if(lbPage<0)lbPage=0;
- const leaders=allL.slice(lbPage*PER,lbPage*PER+PER).map(l=>`<tr class="${l.you?'you':''}"><td class=rank>${l.rank<=3?['','🥇','🥈','🥉'][l.rank]:l.rank}</td><td>${l.you?'★ YOU':shrt(l.addr)}</td><td class=cy>${fmt(Math.round(l.bal))}</td><td>${l.pct}%</td></tr>`).join('');
+ const leaders=allL.slice(lbPage*PER,lbPage*PER+PER).map(l=>`<tr class="${l.you?'you':''}"><td class=rank>${l.rank<=3?['','🥇','🥈','🥉'][l.rank]:l.rank}</td><td>${l.you?'★ YOU':(l.pool?'🌐 ':'')+shrt(l.addr)}${l.pool?' <small style="color:var(--dim)">shared pool</small>':''}</td><td class=cy>${fmt(Math.round(l.bal))}</td><td>${l.pct}%</td></tr>`).join('');
  const lbnav=lbPages>1?`<span class=pg><button onclick="lbGo(-1)" ${lbPage==0?'disabled':''}>‹ prev</button> ${lbPage+1}/${lbPages} <button onclick="lbGo(1)" ${lbPage>=lbPages-1?'disabled':''}>next ›</button></span>`:'';
  const feed=(d.feed||[]).map(f=>`<div class=row><span class="h">#${fmt(f.h)}</span><span class=w>${f.miner?(f.pool?'🌐 ':'')+shrt(f.miner):'—'}${f.you?' ★ you':''}</span><span class=rw>+${f.reward}</span><span class=tm>${ago(f.ago)}</span></div>`).join('');
  const rigs=(d.rigs||[]).map(r=>`<tr><td>${r.name||'—'}</td><td>${r.src?('<span class="tag2'+(r.src=='Local'?' gpu':'')+'">'+r.src+'</span>'):''}</td><td>${r.hps||'—'}</td><td>${r.where?('<span class=flag>'+r.where+'</span>'):''}</td><td class=lt>${r.status||''}</td></tr>`).join('')||'<tr><td colspan=5 style="color:#8fa9e8">no rig/log source — add an MRR key or a miner-log path in CONFIG (optional)</td></tr>';
@@ -528,7 +574,9 @@ function render(d){
    <div><b class=cy>${d.pool.hps&&d.nethps_ph?(d.pool.hps/d.nethps_ph*100).toFixed(0):0}%</b> <small style="color:var(--dim)">of network</small></div>
    <div><b>${d.pool.active}/${d.pool.miners}</b> <small style="color:var(--dim)">miners active</small></div>
    <div><b>${fmt(d.pool.blocks_won)}</b> <small style="color:var(--dim)">blocks won by pool</small></div>
-  </div></div>
+   ${d.pool_wallet?`<div><b class=cy>${fmt(Math.round(d.pool_wallet.balance))}</b> <small style="color:var(--dim)">PROM in pool wallet${d.pool_wallet.rank?' · rank #'+d.pool_wallet.rank:''}</small></div>`:''}
+  </div>
+  <div style="margin-top:8px;font-size:10.5px;color:var(--faint);word-break:break-all">🌐 pool wallet: ${d.pool_wallet?d.pool_wallet.addr:''}</div></div>
  ${nodeSec}
  <div class=sec><span class=t>Your Miner</span><span class=ln></span><span class=pill>pool · solo · rented · local</span></div>
  ${you?`<div class="grid g4">
@@ -555,8 +603,8 @@ ${d.pool_me&&d.pool_me.found?`
   <div class=tbl><div class=hd><span class=k>🔥 Top Block Winners</span><span class=r>last ${d.window_total}</span></div>
    <table><tr><th class=rank>#</th><th>miner</th><th>won</th><th>share</th></tr>${winners}</table></div>
  </div>
- <div class=sec><span class=t>Leaderboard</span><span class=ln></span><span class=pill>top miners · all-time</span></div>
- <div class=tbl><div class=hd><span class=k>🏆 Top Miners</span>${lbnav}<span class=r>${fmt(d.holders)} holders · ${fmt(d.mined)} PROM mined</span></div>
+ <div class=sec><span class=t>Leaderboard</span><span class=ln></span><span class=pill>top holders · all-time</span></div>
+ <div class=tbl><div class=hd><span class=k>🏆 Top Holders</span>${lbnav}<span class=r>${fmt(d.holders)} holders · ${fmt(d.mined)} PROM mined</span></div>
   <table><tr><th class=rank>#</th><th>miner</th><th>PROM held</th><th>% of supply</th></tr>${leaders}</table></div>
  <div class=sec><span class=t>Get Mining</span><span class=ln></span><span class=pill>official setup docs</span></div>
  <div class=getmine>
