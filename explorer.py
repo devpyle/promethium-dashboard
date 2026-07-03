@@ -500,7 +500,7 @@ function render(d){
     <div class="card"><div class=k>Peers</div><div class="v cy">${n.peers}</div><div class=s>${n.cin} in · ${n.cout} out</div></div>
     <div class="card"><div class=k>Mempool</div><div class="v">${fmt(n.mempool)}</div><div class=s>txns waiting</div></div>
     <div class="card"><div class=k>Node Version</div><div class="v" style="font-size:15px;word-break:break-all">${n.subver||'—'}</div><div class=s>${n.chain||''} chain</div></div>
-   </div>${roll?`<div class=note style="border-style:solid">🌍 Your peers span <b>${(n.countries||[]).length}</b> ${n.countries.length==1?'country':'countries'}: <span style="font-size:14px">${roll}</span> &nbsp;<span style="color:var(--faint)">· counts only — no IPs shown or stored</span></div>`:''}`;
+   </div>${roll?`<div class=note style="border-style:solid">🌍 Your peers span <b>${(n.countries||[]).length}</b> ${n.countries.length==1?'country':'countries'}: <span style="font-size:14px">${roll}</span></div>`:''}`;
   } else {
    nodeSec=`<div class=sec><span class=t>Your Node</span><span class=ln></span><span class=pill>local promd</span></div>
    <div class=card style="color:var(--red)">node RPC unreachable — check <b>NODE_RPC</b> / <b>NODE_COOKIE</b> in CONFIG. <span style="color:var(--dim)">(${n.err||''})</span></div>`;
