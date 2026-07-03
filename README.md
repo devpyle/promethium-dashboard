@@ -1,9 +1,9 @@
 # ⚒ Promethium Community Dashboard
 
 An easy, local **explorer + mining dashboard** for the [Promethium](https://promethium.work) (`$PROM`) network.
-Live network stats, your balance & earnings, your hardware, a recent-blocks feed,
-the top block winners, and an all-time miner leaderboard — for **anyone** mining
-in the shared pool, solo, on rented rigs, or on a home CPU/GPU.
+Live network stats with trend graphs, your balance & earnings, your hardware, a
+recent-blocks feed, the top block winners, and an all-time holders leaderboard —
+for **anyone** mining in the shared pool, solo, on rented rigs, or on a home CPU/GPU.
 
 Reads the public Promethium explorer API. **No account, no packages — Python
 standard library only.** One file: `explorer.py`.
@@ -74,14 +74,14 @@ Without any address it still works as a pure network explorer.
 
 ## What it shows
 
-- **Network** — height, hashrate, difficulty, block time, reward, blocks/24h, coins mined, next halving, holders
+- **Network** — height, hashrate (live trend graph), difficulty, block time (vs the 10-min target, with a trend graph), reward, blocks/24h, coins mined, next halving, holders, and the shared pool's wallet balance
 - **Your Node** *(optional — if you run a node)* — sync status, peer count (in/out), mempool, node version, and a country rollup of your peers. Reads **your own** local `promd`; only counts are shown — **never any peer IP**
 - **Your Miner** — balance, earn rate, hashrate, % of network, blocks won, win efficiency
 - **Your Hardware** — rented rigs (MRR / NiceHash) and/or home CPU/GPU
 - **Pool Payouts** — shared-pool miners auto-see their pending + paid PROM and pool-measured hashrate
 - **Recent Blocks** — live feed of who won each block
-- **Top Block Winners** — recent-window leaderboard
-- **Leaderboard** — top miners all-time
+- **Top Block Winners** — who's won the most blocks in the recent window
+- **Top Holders** — the richest addresses all-time (the shared pool is flagged 🌐)
 - **🔎 Look-up** — search any `prom1…` address or block height
 
 ---
