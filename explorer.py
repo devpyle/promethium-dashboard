@@ -468,7 +468,8 @@ header{display:flex;align-items:center;gap:13px;margin-bottom:20px;flex-wrap:wra
 .brand h1{font-size:17px;font-weight:800;letter-spacing:2px}.brand .tag{font-size:11px;color:var(--light);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
 .live{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--light);border:1px solid var(--line);padding:6px 12px;text-transform:uppercase;letter-spacing:1px}
 .dot{width:7px;height:7px;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 1.8s infinite}@keyframes pulse{50%{opacity:.35}}
-.sec{display:flex;align-items:center;gap:10px;margin:22px 1px 11px}.sec .t{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--light)}
+.sec{display:flex;align-items:center;gap:10px;margin:22px 1px 11px;cursor:pointer;user-select:none}.sec .t{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--light)}
+.chev{color:var(--faint);font-size:9px;width:11px;flex-shrink:0;transition:color .15s}.sec:hover .chev,.tbl .hd:hover .chev{color:var(--cyan)}
 .sec .ln{flex:1;height:1px;background:var(--line)}.sec .pill{font-size:10px;color:var(--faint);border:1px solid var(--line);padding:2px 9px;text-transform:uppercase;letter-spacing:1px}
 .grid{display:grid;gap:10px}.g4{grid-template-columns:repeat(4,1fr)}.g6{grid-template-columns:repeat(6,1fr)}.g2{grid-template-columns:2fr 1fr}
 .card{background:var(--panel);border:1px solid var(--line);padding:14px 15px;position:relative}
@@ -485,7 +486,7 @@ header{display:flex;align-items:center;gap:13px;margin-bottom:20px;flex-wrap:wra
 .modes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
 .chip{font-size:10px;color:var(--light);border:1px solid var(--line);padding:4px 11px;text-transform:uppercase;letter-spacing:1px}.chip.on{color:var(--bg);background:var(--title);border-color:transparent;font-weight:700}
 .tbl{background:var(--panel);border:1px solid var(--line)}
-.tbl .hd{padding:12px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}.tbl .hd .k{font-size:11px}.tbl .hd .r{margin-left:auto;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px}
+.tbl .hd{padding:12px 15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}.tbl .hd .k{font-size:11px}.tbl .hd .r{margin-left:auto;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{text-align:left;color:var(--faint);font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;padding:9px 15px;background:var(--bg2)}
 td{padding:9px 15px;border-top:1px solid var(--line);vertical-align:middle;color:#eef3ff}tr:hover td{background:rgba(188,212,255,.05)}
@@ -642,7 +643,34 @@ ${d.pool_me&&d.pool_me.found?`
    <code><a href="https://promethium.work/downloads/prom-miner.py" target=_blank>prom-miner.py</a> · <a href="https://promethium.work/downloads/prom-keygen.py" target=_blank>prom-keygen.py</a></code>
    <code><a href="https://promethium.work/downloads/pool-skill.md" target=_blank>pool-skill.md</a> · <a href="https://promethium.work/downloads/node-skill.md" target=_blank>node-skill.md</a></code></div>
  </div>`;
+ applyCollapse();
 }
+const _COLL=JSON.parse(localStorage.getItem('prom_coll')||'{}');
+function _keyOf(el){const t=el.querySelector('.t,.k');return (t?t.textContent:el.textContent).trim().slice(0,48);}
+function applyCollapse(){
+ const app=document.getElementById('app');
+ app.querySelectorAll('.sec').forEach(sec=>{
+  const key='S:'+_keyOf(sec); let c=sec.querySelector('.chev');
+  if(!c){c=document.createElement('span');c.className='chev';sec.insertBefore(c,sec.firstChild);}
+  const col=!!_COLL[key]; c.textContent=col?'▸':'▾';
+  let el=sec.nextElementSibling;
+  while(el&&!el.classList.contains('sec')){el.style.display=col?'none':'';el=el.nextElementSibling;}
+ });
+ app.querySelectorAll('.tbl').forEach(tbl=>{
+  const hd=tbl.querySelector('.hd'); if(!hd)return;
+  const key='T:'+_keyOf(hd); let c=hd.querySelector('.chev');
+  if(!c){c=document.createElement('span');c.className='chev';hd.insertBefore(c,hd.firstChild);}
+  const col=!!_COLL[key]; c.textContent=col?'▸':'▾';
+  let el=hd.nextElementSibling; while(el){el.style.display=col?'none':'';el=el.nextElementSibling;}
+ });
+}
+document.getElementById('app').addEventListener('click',e=>{
+ if(e.target.closest('a,button,input,.pg'))return;
+ const hd=e.target.closest('.hd'), sec=hd?null:e.target.closest('.sec');
+ const t=hd||sec; if(!t)return;
+ const key=(hd?'T:':'S:')+_keyOf(t);
+ _COLL[key]=!_COLL[key]; localStorage.setItem('prom_coll',JSON.stringify(_COLL)); applyCollapse();
+});
 tick();setInterval(tick,5000);
 </script></body></html>"""
 
