@@ -89,6 +89,8 @@ UA  = {"User-Agent": "prom-dashboard"}
 MULT = {"hash":1,"kh":1e3,"mh":1e6,"gh":1e9,"th":1e12,"ph":1e15}
 SUPPLY_CAP = 21_000_000      # Bitcoin-fork default; edit if the project's cap differs
 HALVING_INTERVAL = 210_000
+RETARGET_INTERVAL = 2016     # difficulty retargets every 2016 blocks (confirmed on-chain)
+TARGET_SPACING    = 600      # 10-minute target block time
 POOL_HOST = "stratum.promethium.work"; POOL_PORT = 3337; SOLO_PORT = 3335
 
 HAVE_MRR = bool(MRR_KEY and MRR_SECRET and "xxxx" not in MRR_KEY)
@@ -257,6 +259,33 @@ def block_at(h):
     while len(block_info) > 400: block_info.popitem(last=False)
     return block_info[h]
 
+_pstart = {}                                        # period-start-height -> timestamp (one fetch per 2-week period)
+def retarget_info(tip, diff, avgbt):
+    """Blocks until the next difficulty retarget, plus an estimate of the change
+    projected from how fast the current period has mined so far (Bitcoin's rule:
+    new_diff = old_diff * target_timespan / actual_timespan, clamped to [0.25x, 4x])."""
+    period_start = (tip // RETARGET_INTERVAL) * RETARGET_INTERVAL
+    next_h = period_start + RETARGET_INTERVAL
+    blocks_left = next_h - tip
+    done = tip - period_start
+    info = {"interval": RETARGET_INTERVAL, "next_height": next_h, "blocks_left": blocks_left,
+            "progress": round(100 * done / RETARGET_INTERVAL, 1),
+            "eta_sec": round(blocks_left * (avgbt or TARGET_SPACING)), "est": None}
+    try:
+        if period_start not in _pstart:
+            _pstart[period_start] = block_at(period_start).get("time") or 0
+            for k in list(_pstart)[:-4]: _pstart.pop(k, None)   # keep only recent periods
+        t0 = _pstart[period_start]; t1 = block_at(tip).get("time") or 0
+        if t0 and t1 > t0 and done > 0:
+            proj_span = (t1 - t0) / done * RETARGET_INTERVAL
+            ratio = max(0.25, min(4.0, (RETARGET_INTERVAL * TARGET_SPACING) / proj_span))
+            info["est"] = {"pct": round((ratio - 1) * 100), "mult": round(ratio, 2),
+                           "dir": "harder" if ratio > 1.01 else ("easier" if ratio < 0.99 else "no change"),
+                           "diff": round(diff * ratio)}
+    except Exception:
+        pass
+    return info
+
 STATE = {"ready": False}
 
 def update_loop():
@@ -397,6 +426,7 @@ def update_loop():
                 "hps_series": hps_series, "hps_10": _hps(10), "hps_120": round(nethps/1e15, 2),
                 "bt_series": bt_series,
                 "blocktime": round(avgbt, 1), "reward": reward, "blocks24h": round(86400/avgbt) if avgbt else 0,
+                "retarget": retarget_info(tip, diff, avgbt),
                 "mined": round(mined), "cap": SUPPLY_CAP, "mined_pct": round(100*mined/SUPPLY_CAP, 1),
                 "halving_days": halving_days, "holders": rl.get("holders", 0),
                 # you
@@ -535,6 +565,7 @@ async function doLookup(){
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key=='Enter')doLookup()});
 function ago(s){return s<60?s+'s':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
+const dur=s=>s<3600?Math.round(s/60)+'m':s<86400?Math.round(s/3600)+'h':(s/86400).toFixed(s<6*86400?1:0)+'d';
 let LAST=null,lbPage=0;
 function lbGo(z){lbPage+=z;if(LAST)render(LAST);}
 async function tick(){
@@ -574,7 +605,7 @@ function render(d){
  <div class="grid g4">
   <div class="card hot"><div class=k>Block Height</div><div class="v">${fmt(d.tip)}</div><div class=s>latest ${d.feed&&d.feed[0]?ago(d.feed[0].ago)+' ago':''}</div></div>
   <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.hps_10||d.nethps_ph} <small>PH/s</small></div><div class=s>live (last 10 blk) · <span style="color:var(--dim)">~2h avg ${d.hps_120} PH</span></div>${spark(d.hps_series,150,30)}</div>
-  <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>retarget every 2016 blocks</div></div>
+  <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>${d.retarget?`retarget in <b>${fmt(d.retarget.blocks_left)}</b> blk · ~${dur(d.retarget.eta_sec)}${d.retarget.est?` · est <span ${d.retarget.est.pct>=0?'class=cy':'style="color:var(--red)"'}>${d.retarget.est.pct>=0?'+':''}${d.retarget.est.pct}% ${d.retarget.est.dir}</span>`:''}`:'retarget every 2016 blocks'}</div>${d.retarget?`<div class=bar title="${d.retarget.progress}% into the 2016-block period → #${fmt(d.retarget.next_height)}"><i style="width:${d.retarget.progress}%"></i></div>`:''}</div>
   <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${mmss(d.blocktime)}</div><div class=s>10m target · ${d.blocktime<540?'<span class=cy>running fast (diff ↑)</span>':d.blocktime>660?'<span style="color:var(--red)">running slow (diff ↓)</span>':'on pace'}</div>${spark(d.bt_series,150,30)}</div>
  </div>
  <div class="grid g6" style="margin-top:10px">
