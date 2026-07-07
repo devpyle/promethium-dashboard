@@ -260,24 +260,26 @@ def block_at(h):
     return block_info[h]
 
 _pstart = {}                                        # period-start-height -> timestamp (one fetch per 2-week period)
-def retarget_info(tip, diff, avgbt):
-    """Blocks until the next difficulty retarget, plus an estimate of the change
-    projected from how fast the current period has mined so far (Bitcoin's rule:
-    new_diff = old_diff * target_timespan / actual_timespan, clamped to [0.25x, 4x])."""
+def retarget_info(tip, diff, avgbt, recent_bt=None):
+    """Blocks until the next difficulty retarget, plus an estimate of where difficulty
+    will land — the ACTUAL time mined so far this period plus the remaining blocks
+    projected at the current (recent) pace, so a hashrate change moves the estimate.
+    Bitcoin rule: new_diff = old_diff * target_timespan / actual_timespan, clamped [0.25x,4x]."""
     period_start = (tip // RETARGET_INTERVAL) * RETARGET_INTERVAL
     next_h = period_start + RETARGET_INTERVAL
     blocks_left = next_h - tip
     done = tip - period_start
+    pace = recent_bt if (recent_bt and recent_bt > 0) else (avgbt or TARGET_SPACING)   # projected s/block for remaining blocks
     info = {"interval": RETARGET_INTERVAL, "next_height": next_h, "blocks_left": blocks_left,
             "progress": round(100 * done / RETARGET_INTERVAL, 1),
-            "eta_sec": round(blocks_left * (avgbt or TARGET_SPACING)), "est": None}
+            "eta_sec": round(blocks_left * pace), "est": None}
     try:
         if period_start not in _pstart:
             _pstart[period_start] = block_at(period_start).get("time") or 0
             for k in list(_pstart)[:-4]: _pstart.pop(k, None)   # keep only recent periods
         t0 = _pstart[period_start]; t1 = block_at(tip).get("time") or 0
         if t0 and t1 > t0 and done > 0:
-            proj_span = (t1 - t0) / done * RETARGET_INTERVAL
+            proj_span = (t1 - t0) + blocks_left * pace          # elapsed-so-far + remaining at current pace
             ratio = max(0.25, min(4.0, (RETARGET_INTERVAL * TARGET_SPACING) / proj_span))
             info["est"] = {"pct": round((ratio - 1) * 100), "mult": round(ratio, 2),
                            "dir": "harder" if ratio > 1.01 else ("easier" if ratio < 0.99 else "no change"),
@@ -432,7 +434,7 @@ def update_loop():
                 "bt_series": bt_series,
                 "blocktime": round(avgbt, 1), "blocktime_recent": recent_bt, "bt_n": _RN,
                 "reward": reward, "blocks24h": round(86400/avgbt) if avgbt else 0,
-                "retarget": retarget_info(tip, diff, avgbt),
+                "retarget": retarget_info(tip, diff, avgbt, recent_bt),
                 "mined": round(mined), "cap": SUPPLY_CAP, "mined_pct": round(100*mined/SUPPLY_CAP, 1),
                 "halving_days": halving_days, "holders": rl.get("holders", 0),
                 # you
