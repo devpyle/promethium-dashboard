@@ -320,6 +320,11 @@ def update_loop():
                     _dt = _a["time"] - _b["time"]
                     hps_series.append(round(float(diff)*4294967296.0*_sw/_dt/1e15, 3))
                     bt_series.append(round(_dt/_sw, 1))          # rolling-6 avg block interval (s)
+            # recent block time: avg interval over the last _RN blocks — reflects current
+            # conditions (a stall/hashrate drop shows here, unlike the 24h avgBlockTime)
+            _RN = 12
+            _ra = block_info.get(tip); _rb = block_info.get(tip-_RN)
+            recent_bt = round((_ra["time"] - _rb["time"]) / _RN, 1) if (_ra and _rb and (_ra.get("time") or 0) > (_rb.get("time") or 0)) else None
             win = {h: block_info.get(h, {}).get("miner") for h in range(lo, tip+1)}
             cnt = collections.Counter(m for m in win.values() if m)
             total = sum(cnt.values()) or 1
@@ -425,7 +430,8 @@ def update_loop():
                 "tip": tip, "diff": diff, "nethps_ph": round(nethps/1e15, 2), "nethps_th": round(nethps/1e12, 0),
                 "hps_series": hps_series, "hps_10": _hps(10), "hps_120": round(nethps/1e15, 2),
                 "bt_series": bt_series,
-                "blocktime": round(avgbt, 1), "reward": reward, "blocks24h": round(86400/avgbt) if avgbt else 0,
+                "blocktime": round(avgbt, 1), "blocktime_recent": recent_bt, "bt_n": _RN,
+                "reward": reward, "blocks24h": round(86400/avgbt) if avgbt else 0,
                 "retarget": retarget_info(tip, diff, avgbt),
                 "mined": round(mined), "cap": SUPPLY_CAP, "mined_pct": round(100*mined/SUPPLY_CAP, 1),
                 "halving_days": halving_days, "holders": rl.get("holders", 0),
@@ -552,7 +558,7 @@ footer{margin-top:22px;text-align:center;color:var(--faint);font-size:10.5px;tex
 const fmt=n=>(n==null?'-':Number(n).toLocaleString());
 const shrt=a=>a?a.slice(0,10)+'…'+a.slice(-7):'';
 const ccFlag=cc=>(cc&&cc.length==2&&/[A-Z]{2}/.test(cc))?String.fromCodePoint(...[...cc].map(c=>0x1F1E6+c.charCodeAt(0)-65)):'🏳';
-const mmss=s=>{s=Math.round(Number(s)||0);if(s<60)return s+'s';const m=Math.floor(s/60);return m+'m '+(s%60).toString().padStart(2,'0')+'s';};
+const mmss=s=>{s=Math.round(Number(s)||0);if(s<60)return s+'s';if(s<3600){const m=Math.floor(s/60);return m+'m '+(s%60).toString().padStart(2,'0')+'s';}const h=Math.floor(s/3600);return h+'h '+Math.floor((s%3600)/60).toString().padStart(2,'0')+'m';};
 const spark=(arr,w,h)=>{if(!arr||arr.length<2)return '';const mn=Math.min(...arr),mx=Math.max(...arr),r=(mx-mn)||1;const pts=arr.map((v,i)=>`${(i/(arr.length-1)*w).toFixed(1)},${(h-1-(v-mn)/r*(h-3)).toFixed(1)}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="margin-top:7px;display:block"><polygon points="0,${h} ${pts} ${w},${h}" fill="rgba(0,240,255,.10)"/><polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="1.5"/></svg>`;};
 async function doLookup(){
  const q=document.getElementById('q').value.trim();if(!q)return;
@@ -606,7 +612,7 @@ function render(d){
   <div class="card hot"><div class=k>Block Height</div><div class="v">${fmt(d.tip)}</div><div class=s>latest ${d.feed&&d.feed[0]?ago(d.feed[0].ago)+' ago':''}</div></div>
   <div class="card hot"><div class=k>Network Hashrate</div><div class="v cy">${d.hps_10||d.nethps_ph} <small>PH/s</small></div><div class=s>live (last 10 blk) · <span style="color:var(--dim)">~2h avg ${d.hps_120} PH</span></div>${spark(d.hps_series,150,30)}</div>
   <div class="card hot"><div class=k>Difficulty</div><div class="v">${fmt(d.diff)}</div><div class=s>${d.retarget?`retarget in <b>${fmt(d.retarget.blocks_left)}</b> blk · ~${dur(d.retarget.eta_sec)}${d.retarget.est?` · est <span ${d.retarget.est.pct>=0?'class=cy':'style="color:var(--red)"'}>${d.retarget.est.pct>=0?'+':''}${d.retarget.est.pct}% ${d.retarget.est.dir}</span>`:''}`:'retarget every 2016 blocks'}</div>${d.retarget?`<div class=bar title="${d.retarget.progress}% into the 2016-block period → #${fmt(d.retarget.next_height)}"><i style="width:${d.retarget.progress}%"></i></div>`:''}</div>
-  <div class="card hot"><div class=k>Avg Block Time</div><div class="v">${mmss(d.blocktime)}</div><div class=s>10m target · ${d.blocktime<540?'<span class=cy>running fast (diff ↑)</span>':d.blocktime>660?'<span style="color:var(--red)">running slow (diff ↓)</span>':'on pace'}</div>${spark(d.bt_series,150,30)}</div>
+  <div class="card hot"><div class=k>Block Time <small style="color:var(--dim);font-weight:400">· last ${d.bt_n||12} blk</small></div><div class="v"${(d.blocktime_recent!=null?d.blocktime_recent:d.blocktime)>900?' style="color:var(--red)"':((d.blocktime_recent!=null?d.blocktime_recent:d.blocktime)<540?' class=cy':'')}>${mmss(d.blocktime_recent!=null?d.blocktime_recent:d.blocktime)}</div><div class=s><span style="color:var(--dim)">24h avg <b>${mmss(d.blocktime)}</b> · 10m target</span></div>${spark(d.bt_series,150,30)}</div>
  </div>
  <div class="grid g6" style="margin-top:10px">
   <div class=card><div class=k>Block Reward</div><div class="v">${d.reward}<small> PROM</small></div></div>
